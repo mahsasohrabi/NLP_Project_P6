@@ -1,0 +1,67 @@
+{
+  "baseline": {
+    "model_name": "DistilBERT-Baseline",
+    "mode": "baseline",
+    "accuracy": 0.8245614035087719,
+    "f1_macro": 0.7123025632617369,
+    "f1_negative": 0.5263157894736842,
+    "f1_neutral": 0.9439252336448598,
+    "f1_positive": 0.6666666666666666,
+    "n_parameters": 66955779,
+    "model_size_mb": 255.4,
+    "inference_ms_per_sample": 956.3684769005778,
+    "f1_per_million_params": 0.010638403046012455,
+    "confusion": [
+      [
+        20,
+        0,
+        26
+      ],
+      [
+        0,
+        202,
+        8
+      ],
+      [
+        10,
+        16,
+        60
+      ]
+    ],
+    "class_report": "              precision    recall  f1-score   support\n\n    negative       0.67      0.43      0.53        46\n     neutral       0.93      0.96      0.94       210\n    positive       0.64      0.70      0.67        86\n\n    accuracy                           0.82       342\n   macro avg       0.74      0.70      0.71       342\nweighted avg       0.82      0.82      0.82       342\n"
+  },
+  "distilled": {
+    "model_name": "DistilBERT-Distilled",
+    "mode": "distilled",
+    "accuracy": 0.7807017543859649,
+    "f1_macro": 0.5528883986026844,
+    "f1_negative": 0.12244897959183673,
+    "f1_neutral": 0.92,
+    "f1_positive": 0.6162162162162163,
+    "n_parameters": 66955779,
+    "model_size_mb": 255.4,
+    "inference_ms_per_sample": 865.5457678362553,
+    "f1_per_million_params": 0.008257515734417551,
+    "confusion": [
+      [
+        3,
+        4,
+        39
+      ],
+      [
+        0,
+        207,
+        3
+      ],
+      [
+        0,
+        29,
+        57
+      ]
+    ],
+    "class_report": "              precision    recall  f1-score   support\n\n    negative       1.00      0.07      0.12        46\n     neutral       0.86      0.99      0.92       210\n    positive       0.58      0.66      0.62        86\n\n    accuracy                           0.78       342\n   macro avg       0.81      0.57      0.55       342\nweighted avg       0.81      0.78      0.74       342\n"
+  },
+  "teacher_f1_reference": null,
+  "f1_delta": -0.1594,
+  "retention_ratio": 0.7762
+}

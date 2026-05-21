@@ -1,0 +1,31 @@
+{
+  "model_name": "DistilBERT-Distilled",
+  "mode": "distilled",
+  "accuracy": 0.8187134502923976,
+  "f1_macro": 0.7018779342723005,
+  "f1_negative": 0.5,
+  "f1_neutral": 0.9389671361502347,
+  "f1_positive": 0.6666666666666666,
+  "n_parameters": 66955779,
+  "model_size_mb": 255.4,
+  "inference_ms_per_sample": 650.2423897660765,
+  "f1_per_million_params": 0.010482708808037323,
+  "confusion": [
+    [
+      18,
+      0,
+      28
+    ],
+    [
+      0,
+      200,
+      10
+    ],
+    [
+      8,
+      16,
+      62
+    ]
+  ],
+  "class_report": "              precision    recall  f1-score   support\n\n    negative       0.69      0.39      0.50        46\n     neutral       0.93      0.95      0.94       210\n    positive       0.62      0.72      0.67        86\n\n    accuracy                           0.82       342\n   macro avg       0.75      0.69      0.70       342\nweighted avg       0.82      0.82      0.81       342\n"
+}

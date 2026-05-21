@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+.pytest_cache/
+
+# Virtual environment - HUGE, never commit
+venv/
+env/
+.venv/
+
+# Model checkpoints - >100 MB each, GitHub rejects
+outputs/student_baseline/
+outputs/student_distilled/
+outputs_alpha03/student_baseline/
+outputs_alpha03/student_distilled/
+outputs_T2/student_baseline/
+outputs_T2/student_distilled/
+
+# Secrets - never commit API keys
+.env
+*.key
+*_secret*
+api_key.txt
+*.pem
+
+# HuggingFace cache
+hf_cache/
+.cache/
+
+# OS/IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# LaTeX build artifacts
+*.aux
+*.log
+*.out
+*.toc
+*.bbl
+*.blg
+*.synctex.gz
+*.fls
+*.fdb_latexmk
