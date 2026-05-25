@@ -185,15 +185,11 @@ class FinancialPhraseBankLoader:
         return DataSplit(train=train, val=val, test=test)
 
 
-# ── PyTorch Dataset wrapper ──────────────────────────────────────────────────
+#PyTorch Dataset wrapper
 
 if HAS_TORCH:
     class FinancialSentimentDataset(Dataset):
-        """
-        PyTorch Dataset wrapping FinancialSample objects.
-        Tokenizes on-the-fly using a provided tokenizer.
-        Supports both hard labels (for baseline) and soft labels (for distillation).
-        """
+        
 
         def __init__(
             self,

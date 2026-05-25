@@ -1,17 +1,3 @@
-"""
-Evaluation module for comparing Teacher vs Student (Baseline vs Distilled).
-
-Metrics computed:
-  - Accuracy, Macro-F1, Per-class F1
-  - Confusion matrix
-  - Model size (parameters, disk MB)
-  - Inference speed (ms/sample)
-  - Efficiency ratio: performance per parameter
-
-This module produces the quantitative evidence for the paper's
-"Experimental Results" section.
-"""
-
 import time
 import json
 import logging
@@ -39,13 +25,10 @@ except ImportError:
     HAS_SKLEARN = False
 
 
-# ── Result containers ─────────────────────────────────────────────────────────
-
 @dataclass
 class ModelMetrics:
-    """Complete evaluation metrics for one model configuration."""
     model_name: str
-    mode: str                          # "baseline" | "distilled" | "teacher"
+    mode: str                          
 
     # Performance
     accuracy: float = 0.0
@@ -60,7 +43,7 @@ class ModelMetrics:
     inference_ms_per_sample: float = 0.0
 
     # Derived
-    f1_per_million_params: float = 0.0   # efficiency metric
+    f1_per_million_params: float = 0.0  
 
     # Detail
     confusion: list = field(default_factory=list)
@@ -81,19 +64,16 @@ class ModelMetrics:
 
 @dataclass
 class ComparisonReport:
-    """Side-by-side comparison of baseline vs distilled student."""
     baseline: ModelMetrics
     distilled: ModelMetrics
     teacher_f1: Optional[float] = None   # upper bound reference
 
     def retention_ratio(self) -> float:
-        """How much of the baseline F1 does the distilled model retain?"""
         if self.baseline.f1_macro == 0:
             return 0.0
         return self.distilled.f1_macro / self.baseline.f1_macro
 
     def f1_delta(self) -> float:
-        """F1 improvement from distillation (positive = distillation helps)."""
         return self.distilled.f1_macro - self.baseline.f1_macro
 
     def to_dict(self) -> dict:
@@ -121,20 +101,16 @@ class ComparisonReport:
         print("="*65)
 
 
-# ── Evaluator ────────────────────────────────────────────────────────────────
 
 class Evaluator:
-    """
-    Evaluates student models on the test set and generates comparison reports.
-    """
-
+   
     LABEL_NAMES = ["negative", "neutral", "positive"]
 
     def __init__(self, output_dir: str = "outputs/evaluation"):
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-    # ── Public API ────────────────────────────────────────────────────────
+    # API
 
     def evaluate_student(
         self,
@@ -143,15 +119,7 @@ class Evaluator:
         model_name: str,
         mode: str,
     ) -> ModelMetrics:
-        """
-        Full evaluation of a StudentModel on test_samples.
-
-        Args:
-            student:      trained StudentModel
-            test_samples: list of FinancialSample
-            model_name:   display name for the model
-            mode:         "baseline" or "distilled"
-        """
+        
         texts  = [s.text for s in test_samples]
         labels = [s.label for s in test_samples]
 
@@ -191,10 +159,7 @@ class Evaluator:
         test_samples: list,
         teacher,
     ) -> float:
-        """
-        Evaluate teacher accuracy on test set (using hard prediction from soft labels).
-        Returns macro-F1.
-        """
+        
         true_labels = [s.label for s in test_samples]
         pred_labels = []
 
@@ -210,7 +175,7 @@ class Evaluator:
         distilled: ModelMetrics,
         teacher_f1: Optional[float] = None,
     ) -> ComparisonReport:
-        """Create and save a comparison report."""
+        
         report = ComparisonReport(
             baseline=baseline,
             distilled=distilled,
@@ -229,7 +194,6 @@ class Evaluator:
         with open(out_path, "w") as f:
             json.dump(metrics.to_dict(), f, indent=2)
 
-    # ── Internal helpers ──────────────────────────────────────────────────
 
     def _compute_metrics(
         self,
@@ -257,32 +221,20 @@ class Evaluator:
         }
 
     def _model_size(self, student) -> dict:
-        """Count parameters and estimate disk size."""
         try:
             n_params = sum(p.numel() for p in student.model.parameters())
-            # Rough estimate: 4 bytes per float32 param
             size_mb = (n_params * 4) / (1024 ** 2)
             return {"n_parameters": n_params, "size_mb": round(size_mb, 1)}
         except Exception:
             return {"n_parameters": 0, "size_mb": 0.0}
 
 
-# ── Standalone metrics (no model needed) ─────────────────────────────────────
 
 def compute_teacher_agreement(
     samples: list,
     threshold: float = 0.6,
 ) -> dict:
-    """
-    Analyzes teacher annotation quality on samples that have soft_labels.
-
-    Args:
-        samples:   list of FinancialSample with soft_labels populated
-        threshold: confidence threshold for "high confidence" annotations
-
-    Returns:
-        Dict with agreement stats.
-    """
+   
     if not samples or samples[0].soft_labels is None:
         return {"error": "No soft labels found. Run teacher annotation first."}
 
