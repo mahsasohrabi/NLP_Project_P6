@@ -1,13 +1,3 @@
-"""
-Data loading and preprocessing for FinancialPhraseBank dataset.
-
-FinancialPhraseBank (Malo et al., 2014) contains 4,840 sentences from financial news
-annotated with sentiment: positive, negative, neutral.
-
-We use the 'Sentences_AllAgree' split — only sentences where ALL annotators agreed,
-giving us the cleanest, highest-confidence labels (~2,264 sentences).
-"""
-
 import re
 import random
 from pathlib import Path
@@ -15,14 +5,13 @@ from dataclasses import dataclass, field
 from typing import Optional
 from collections import Counter
 
-# ── Optional imports (graceful degradation for environments without torch) ──
 try:
     import torch
     from torch.utils.data import Dataset
     HAS_TORCH = True
 except ImportError:
     HAS_TORCH = False
-    Dataset = object  # fallback base
+    Dataset = object  
 
 try:
     from datasets import load_dataset
@@ -31,21 +20,18 @@ except ImportError:
     HAS_DATASETS = False
 
 
-# ── Label mapping ────────────────────────────────────────────────────────────
-
 LABEL2ID = {"negative": 0, "neutral": 1, "positive": 2}
 ID2LABEL = {v: k for k, v in LABEL2ID.items()}
 NUM_LABELS = 3
 
 
-# ── Data structures ──────────────────────────────────────────────────────────
 
 @dataclass
 class FinancialSample:
-    """A single labelled sentence from FinancialPhraseBank."""
+   
     text: str
     label: int          # 0=negative, 1=neutral, 2=positive
-    label_str: str      # human-readable label
+    label_str: str      # readable label
     soft_labels: Optional[list] = None   # teacher probability distribution [neg, neu, pos]
     source: str = "FinancialPhraseBank"
 
@@ -68,38 +54,25 @@ class DataSplit:
         }
 
 
-# ── Loader ───────────────────────────────────────────────────────────────────
+# Loader
 
 class FinancialPhraseBankLoader:
-    """
-    Loads FinancialPhraseBank from HuggingFace Hub and splits into
-    train / val / test (70 / 15 / 15) with stratification.
-
-    Dataset card: https://huggingface.co/datasets/financial_phrasebank
-    Paper: Malo et al. (2014) "Good Debt or Bad Debt: Detecting Semantic Orientations
-           in Economic Texts"
-    """
 
     HF_DATASET_NAME = "takala/financial_phrasebank"
-    HF_CONFIG = "sentences_allagree"   # strictest agreement — highest quality
+    HF_CONFIG = "sentences_allagree"   
 
     def __init__(self, seed: int = 42):
         self.seed = seed
         random.seed(seed)
 
-    # ── Public API ────────────────────────────────────────────────────────
+    #Public API 
 
     def load(self) -> DataSplit:
-        """Load and split the dataset. Returns a DataSplit object."""
         raw_samples = self._fetch_from_hub()
         return self._stratified_split(raw_samples)
 
     def load_from_file(self, filepath: str) -> DataSplit:
-        """
-        Fallback: load from a local .txt file in the original format:
-            sentence@label
-        E.g.:  "Operating profit fell to EUR 2 .@negative"
-        """
+        
         samples = []
         path = Path(filepath)
         if not path.exists():
@@ -123,21 +96,9 @@ class FinancialPhraseBankLoader:
                 ))
         return self._stratified_split(samples)
 
-    # ── Internal helpers ──────────────────────────────────────────────────
-
+    
     def _fetch_from_hub(self) -> list:
-        """
-        Download the original FinancialPhraseBank zip from HuggingFace Hub
-        and parse its plain-text format.
-
-        The original format is one sentence per line:
-            <sentence>@<label>
-        where <label> is one of 'negative', 'neutral', 'positive'.
-
-        We bypass datasets.load_dataset() because the takala/financial_phrasebank
-        repo only contains the legacy loader script + the raw zip, and datasets
-        v4 refuses to run scripts. Going straight to the zip avoids the issue.
-        """
+        
         try:
             from huggingface_hub import hf_hub_download
         except ImportError:
@@ -146,15 +107,14 @@ class FinancialPhraseBankLoader:
             )
         import zipfile
 
-        # Download the zip (cached locally after first run)
+       
         zip_path = hf_hub_download(
             repo_id=self.HF_DATASET_NAME,
             filename="data/FinancialPhraseBank-v1.0.zip",
             repo_type="dataset",
         )
 
-        # Filenames inside the zip — they match the four agreement levels
-        # (the canonical file naming uses 'AllAgree', '75Agree', etc.)
+       
         config_to_filename = {
             "sentences_allagree":  "FinancialPhraseBank-v1.0/Sentences_AllAgree.txt",
             "sentences_75agree":   "FinancialPhraseBank-v1.0/Sentences_75Agree.txt",
@@ -192,7 +152,6 @@ class FinancialPhraseBankLoader:
         return samples
 
     def _clean(self, text: str) -> str:
-        """Light-touch cleaning: normalise whitespace, strip artifacts."""
         text = re.sub(r"\s+", " ", text).strip()
         return text
 
@@ -202,10 +161,7 @@ class FinancialPhraseBankLoader:
         train_ratio: float = 0.70,
         val_ratio: float = 0.15,
     ) -> DataSplit:
-        """
-        Stratified split to maintain class balance across train/val/test.
-        test_ratio = 1 - train_ratio - val_ratio
-        """
+        
         # Group by label
         by_label: dict[int, list] = {0: [], 1: [], 2: []}
         for s in samples:
