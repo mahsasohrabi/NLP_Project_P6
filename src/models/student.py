@@ -1,23 +1,3 @@
-"""
-Student Model: DistilBERT fine-tuned via Knowledge Distillation.
-
-We train a DistilBERT-base-uncased model (66M params, 40% smaller than BERT-base)
-to imitate a large teacher LLM on financial sentiment classification.
-
-Two training modes:
-  1. Baseline:       Cross-entropy on hard labels (standard fine-tuning)
-  2. Distillation:   KL-divergence from teacher soft labels + CE on hard labels
-
-The combined distillation loss is:
-  L = α * L_KD + (1 - α) * L_CE
-
-where L_KD = KLDiv(student_logits/T || teacher_probs/T), T = temperature.
-
-References:
-  - Hinton et al. (2015) "Distilling the Knowledge in a Neural Network"
-  - Jiao et al. (2020) "TinyBERT: Distilling BERT for NLU"
-"""
-
 import logging
 import math
 import json
@@ -49,20 +29,17 @@ except ImportError:
     HAS_TRANSFORMERS = False
 
 
-# ── Config ───────────────────────────────────────────────────────────────────
-
 @dataclass
 class StudentConfig:
-    """All hyperparameters for the student model and training."""
-
+    
     # Model
     model_name: str = "distilbert-base-uncased"
     num_labels: int = 3
     max_length: int = 128
 
     # Distillation
-    temperature: float = 4.0        # softens probability distributions
-    alpha: float = 0.7              # weight on KD loss (1-alpha on CE loss)
+    temperature: float = 4.0        
+    alpha: float = 0.7             
 
     # Training
     learning_rate: float = 2e-5
@@ -88,7 +65,7 @@ class StudentConfig:
         return cls(**data)
 
 
-# ── Loss functions ────────────────────────────────────────────────────────────
+#Loss functions 
 
 def distillation_loss(
     student_logits: "torch.Tensor",
@@ -97,20 +74,7 @@ def distillation_loss(
     temperature: float,
     alpha: float,
 ) -> "torch.Tensor":
-    """
-    Combined distillation + cross-entropy loss.
-
-    Args:
-        student_logits: raw logits from student  [B, num_labels]
-        teacher_probs:  soft probs from teacher  [B, num_labels]
-        hard_labels:    ground-truth class ids   [B]
-        temperature:    softening factor T
-        alpha:          weight on KD loss
-
-    Returns:
-        Scalar loss tensor.
-    """
-    # KL-divergence distillation loss (temperature scaled)
+    
     student_log_probs_T = F.log_softmax(student_logits / temperature, dim=-1)
     teacher_probs_T = F.softmax(
         torch.log(teacher_probs.clamp(min=1e-8)) / temperature, dim=-1
@@ -121,20 +85,15 @@ def distillation_loss(
         reduction="batchmean",
     ) * (temperature ** 2)
 
-    # Standard cross-entropy on hard labels
     ce_loss = F.cross_entropy(student_logits, hard_labels)
 
     return alpha * kd_loss + (1 - alpha) * ce_loss
 
 
-# ── Student Model ─────────────────────────────────────────────────────────────
+# Student Model 
 
 class StudentModel:
-    """
-    DistilBERT-based student model for financial sentiment classification.
-    Supports both standard fine-tuning and knowledge distillation training.
-    """
-
+    
     def __init__(self, config: StudentConfig):
         if not HAS_TORCH or not HAS_TRANSFORMERS:
             raise ImportError(
@@ -160,7 +119,7 @@ class StudentModel:
         # Training history
         self.history: list[dict] = []
 
-    # ── Training ──────────────────────────────────────────────────────────
+    #Training 
 
     def train(
         self,
@@ -169,18 +128,7 @@ class StudentModel:
         use_distillation: bool = True,
         verbose: bool = True,
     ) -> list[dict]:
-        """
-        Full training loop.
-
-        Args:
-            train_samples: list of FinancialSample (with soft_labels if distillation)
-            val_samples:   validation set
-            use_distillation: if True, use KD loss; else standard CE
-            verbose:       print epoch summaries
-
-        Returns:
-            Training history (list of per-epoch dicts).
-        """
+        
         from src.data.loader import FinancialSentimentDataset
 
         # Build datasets
@@ -271,15 +219,10 @@ class StudentModel:
 
         return self.history
 
-    # ── Inference ─────────────────────────────────────────────────────────
+    # Inference 
 
     def predict(self, texts: list[str]) -> list[dict]:
-        """
-        Run inference on a list of sentences.
-
-        Returns:
-            List of dicts: {"label": str, "confidence": float, "probs": [neg, neu, pos]}
-        """
+        
         from src.data.loader import ID2LABEL
         self.model.eval()
         results = []
@@ -310,7 +253,6 @@ class StudentModel:
             })
         return results
 
-    # ── Persistence ───────────────────────────────────────────────────────
 
     def save(self, path):
         path = Path(path)
@@ -330,7 +272,6 @@ class StudentModel:
         student.tokenizer = AutoTokenizer.from_pretrained(path)
         return student
 
-    # ── Private helpers ───────────────────────────────────────────────────
 
     def _train_epoch(
         self,
