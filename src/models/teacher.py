@@ -1,15 +1,3 @@
-"""
-Teacher Model: GPT-4 / Claude via API to generate soft probability labels
-for knowledge distillation.
-
-The teacher annotates each sentence with a probability distribution over
-[negative, neutral, positive], giving the student model richer training signal
-than hard one-hot labels.
-
-This implements "response-based distillation" — the simplest and most
-practical form, where the student learns from the teacher's output probabilities.
-"""
-
 import json
 import time
 import logging
@@ -20,11 +8,8 @@ import re
 logger = logging.getLogger(__name__)
 
 
-# ── Prompts ──────────────────────────────────────────────────────────────────
 
-SYSTEM_PROMPT = """You are a financial sentiment analysis expert. Your task is to assess 
-the sentiment of financial news sentences with precision.
-
+SYSTEM_PROMPT = """
 For each sentence, output ONLY a JSON object with exactly this structure:
 {
   "negative": <float between 0 and 1>,
@@ -44,17 +29,9 @@ USER_TEMPLATE = """Analyze the financial sentiment of this sentence:
 Respond only with the JSON object."""
 
 
-# ── Teacher ──────────────────────────────────────────────────────────────────
+# Teacher
 
 class TeacherModel:
-    """
-    Wraps the Anthropic Claude API to generate soft sentiment labels.
-
-    Usage:
-        teacher = TeacherModel(api_key="sk-...")
-        probs = teacher.annotate("The company reported record profits.")
-        # → [0.02, 0.08, 0.90]  (neg, neu, pos)
-    """
 
     DEFAULT_MODEL = "claude-sonnet-4-20250514"
 
@@ -78,20 +55,16 @@ class TeacherModel:
                 self._cache = json.load(f)
             logger.info(f"Loaded {len(self._cache)} cached annotations.")
 
-        # Init Anthropic client
         try:
             import anthropic
             self._client = anthropic.Anthropic(api_key=api_key)
         except ImportError:
             raise ImportError("Install anthropic: pip install anthropic")
 
-    # ── Public API ────────────────────────────────────────────────────────
+    #API 
 
     def annotate(self, text: str) -> list[float]:
-        """
-        Returns soft labels [p_negative, p_neutral, p_positive] for one sentence.
-        Uses cache to avoid redundant API calls.
-        """
+        
         if text in self._cache:
             return self._cache[text]["probs"]
 
@@ -105,18 +78,13 @@ class TeacherModel:
         save_every: int = 50,
         verbose: bool = True,
     ) -> list:
-        """
-        Annotates a list of FinancialSample objects with soft labels in-place.
-        Saves cache to disk every `save_every` calls.
-
-        Returns the annotated samples (with soft_labels populated).
-        """
+        
         total = len(samples)
         annotated = 0
 
         for i, sample in enumerate(samples):
             if sample.soft_labels is not None:
-                continue  # already annotated
+                continue  
 
             try:
                 probs = self.annotate(sample.text)
@@ -124,7 +92,6 @@ class TeacherModel:
                 annotated += 1
             except Exception as e:
                 logger.warning(f"Failed to annotate sample {i}: {e}")
-                # Fallback: use hard label as one-hot soft label
                 one_hot = [0.05, 0.05, 0.05]
                 one_hot[sample.label] = 0.85
                 sample.soft_labels = one_hot
@@ -141,11 +108,7 @@ class TeacherModel:
         return samples
 
     def estimate_cost(self, n_samples: int) -> dict:
-        """
-        Rough cost estimate for annotating n_samples with Claude Sonnet.
-        Pricing: ~$3 per 1M input tokens, ~$15 per 1M output tokens.
-        Average sentence ~30 tokens input, ~80 tokens output (with reasoning).
-        """
+        
         cached = sum(1 for _ in range(min(n_samples, len(self._cache))))
         new = n_samples - cached
         input_tokens  = new * (len(SYSTEM_PROMPT.split()) + 50)
@@ -159,7 +122,6 @@ class TeacherModel:
             "estimated_time_minutes": round(new * 1.5 / 60, 1),
         }
 
-    # ── Internal ──────────────────────────────────────────────────────────
 
     def _call_api(self, text: str) -> tuple[list[float], str]:
         """Single API call with retry logic."""
@@ -186,14 +148,11 @@ class TeacherModel:
         raise RuntimeError(f"API call failed after {self.max_retries} attempts: {last_error}")
 
     def _parse_response(self, raw: str) -> tuple[list[float], str]:
-        """Parse JSON response and normalise probabilities."""
-        # Strip markdown code fences if present
         raw = re.sub(r"```(?:json)?", "", raw).strip("` \n")
 
         try:
             data = json.loads(raw)
         except json.JSONDecodeError:
-            # Fallback: try to extract JSON object
             match = re.search(r'\{.*\}', raw, re.DOTALL)
             if match:
                 data = json.loads(match.group())
@@ -205,7 +164,6 @@ class TeacherModel:
         pos = float(data.get("positive", 0.34))
         reasoning = data.get("reasoning", "")
 
-        # Normalise to sum to 1
         total = neg + neu + pos
         if total <= 0:
             total = 1.0
@@ -214,39 +172,19 @@ class TeacherModel:
         return probs, reasoning
 
     def _save_cache(self):
-        """Persist annotation cache to disk."""
         if self._cache_path:
             self._cache_path.parent.mkdir(parents=True, exist_ok=True)
             with open(self._cache_path, "w") as f:
                 json.dump(self._cache, f, indent=2)
 
 
-# ── Groq Teacher (Llama 3.3 70B via OpenAI-compatible API) ───────────────────
+# Groq Teacher (Llama 3.3 70B via OpenAI-compatible API) 
 
 class GroqTeacher:
-    """
-    Wraps the Groq API (OpenAI-compatible) to generate soft sentiment labels
-    using an open-weights LLM (default: Llama 3.3 70B).
-
-    Free tier limits (2026):
-      - 1,000 requests/day on Llama 3.3 70B
-      - 6,000 tokens/min  → enforced by throttling
-      - 30 requests/min
-
-    The dataset (~1923 train+val sentences) exceeds the daily limit, so
-    annotation is designed to be resumable: if the daily quota is exhausted,
-    the cache is saved and the script exits cleanly. Re-run the next day to
-    continue.
-
-    Usage:
-        teacher = GroqTeacher(api_key="gsk-...", cache_path="outputs/groq_cache.json")
-        probs = teacher.annotate("The company reported record profits.")
-    """
 
     DEFAULT_MODEL = "llama-3.3-70b-versatile"
     BASE_URL = "https://api.groq.com/openai/v1"
 
-    # Free tier: 30 requests/min → space requests >=2 sec apart for safety
     MIN_REQUEST_INTERVAL_SEC = 2.0
 
     def __init__(
@@ -275,7 +213,7 @@ class GroqTeacher:
         except ImportError:
             raise ImportError("Install openai: pip install openai")
 
-    # ── Public API ────────────────────────────────────────────────────────
+    # API 
 
     def annotate(self, text: str) -> list[float]:
         if text in self._cache:
@@ -291,10 +229,7 @@ class GroqTeacher:
         save_every: int = 25,
         verbose: bool = True,
     ) -> list:
-        """
-        Annotates samples with rate-limit awareness. On daily-quota exhaustion,
-        saves cache and stops cleanly so the user can resume the next day.
-        """
+        
         total = len(samples)
         annotated = 0
         quota_exhausted = False
@@ -352,10 +287,8 @@ class GroqTeacher:
                 f"this will take {(new + 999) // 1000} day(s) of annotation.",
         }
 
-    # ── Internal ──────────────────────────────────────────────────────────
 
     def _call_api(self, text: str) -> tuple[list[float], str]:
-        # Throttle: enforce minimum interval between calls
         elapsed = time.time() - self._last_call_time
         if elapsed < self.MIN_REQUEST_INTERVAL_SEC:
             time.sleep(self.MIN_REQUEST_INTERVAL_SEC - elapsed)
@@ -379,10 +312,8 @@ class GroqTeacher:
 
             except Exception as e:
                 err_str = str(e).lower()
-                # Detect daily-quota exhaustion specifically
                 if "rate_limit" in err_str and ("day" in err_str or "rpd" in err_str):
                     raise _DailyQuotaExceeded(str(e))
-                # Transient rate-limit (per-minute): back off and retry
                 if "429" in err_str or "rate" in err_str:
                     wait = self.retry_delay * (2 ** attempt)
                     logger.info(f"Rate-limited, waiting {wait:.0f}s (attempt {attempt+1}/{self.max_retries})...")
@@ -396,7 +327,6 @@ class GroqTeacher:
         raise RuntimeError(f"API call failed after {self.max_retries} attempts: {last_error}")
 
     def _parse_response(self, raw: str) -> tuple[list[float], str]:
-        """Parse JSON response and normalise probabilities. Mirrors TeacherModel."""
         raw = re.sub(r"```(?:json)?", "", raw).strip("` \n")
         try:
             data = json.loads(raw)
@@ -426,17 +356,12 @@ class GroqTeacher:
 
 
 class _DailyQuotaExceeded(Exception):
-    """Internal: raised when Groq's daily quota is hit. Triggers clean stop."""
     pass
 
 
-# ── Mock Teacher (for testing without API) ───────────────────────────────────
+# Mock Teacher for testing without API
 
 class MockTeacher:
-    """
-    Deterministic mock teacher for unit tests and offline development.
-    Generates soft labels from hard labels with configurable noise.
-    """
 
     def __init__(self, confidence: float = 0.80, seed: int = 42):
         import random

@@ -272,7 +272,6 @@ class StudentModel:
         student.tokenizer = AutoTokenizer.from_pretrained(path)
         return student
 
-
     def _train_epoch(
         self,
         loader: "DataLoader",
@@ -317,7 +316,6 @@ class StudentModel:
         return total_loss / len(loader)
 
     def _evaluate(self, loader: "DataLoader") -> dict:
-        """Returns loss, accuracy, and macro-F1."""
         from sklearn.metrics import f1_score, accuracy_score
 
         self.model.eval()
